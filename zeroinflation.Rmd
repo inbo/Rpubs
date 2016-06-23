@@ -5,6 +5,8 @@ date: "23 juni 2016"
 output: html_document
 ---
 
+The source of this document is available at https://github.com/inbo/Rpubs. Pull requests with corrections or addition are welcome.
+
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(
   echo = TRUE,
