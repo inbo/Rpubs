@@ -19,6 +19,7 @@ library(scales)
 library(pscl)
 library(MASS)
 library(tidyr)
+library(lme4)
 set.seed(1234)
 n <- 1e4
 n.sim <- 1e3
@@ -169,6 +170,13 @@ When we fit a proper zero-inflated model to the zero-inflated Poisson variable, 
 ```{r}
 m.zero.nb <- glm.nb(ZeroInflatedPoisson ~ factor(Mean), data = dataset)
 summary(m.zero.nb)
+dataset$ID <- seq_along(dataset$Mean)
+m.zero.olre <- glmer(
+  ZeroInflatedPoisson ~ factor(Mean) + (1 | ID), 
+  data = dataset,
+  family = poisson
+)
+summary(m.zero.olre)
 ```
 
 ```{r}
@@ -178,6 +186,15 @@ simulated$ZeroInflatedNB <- apply(
   mean
 )
 ggplot(simulated, aes(x = ZeroInflatedNB)) +
+  geom_histogram(binwidth = 0.0005) +
+  geom_vline(xintercept = mean(dataset$ZeroInflatedPoisson == 0), colour = "red") +
+  scale_x_continuous(label = percent)
+simulated$ZeroInflatedOLRE <- apply(
+  simulate(m.zero.olre, nsim = n.sim) == 0, 
+  2, 
+  mean
+)
+ggplot(simulated, aes(x = ZeroInflatedOLRE)) +
   geom_histogram(binwidth = 0.0005) +
   geom_vline(xintercept = mean(dataset$ZeroInflatedPoisson == 0), colour = "red") +
   scale_x_continuous(label = percent)
@@ -213,6 +230,21 @@ simulated$ZeroInflatedNB2 <- apply(
   mean
 )
 ggplot(simulated, aes(x = ZeroInflatedNB2)) +
+  geom_histogram(binwidth = 0.01) +
+  geom_vline(xintercept = mean(dataset2$ZeroInflatedPoisson == 0), colour = "red") +
+  scale_x_continuous(label = percent)
+dataset2$ID <- seq_along(dataset2$Mean)
+m.zero.olre2 <- glmer(
+  ZeroInflatedPoisson ~ (1 | ID), 
+  data = dataset2,
+  family = poisson
+)
+simulated$ZeroInflatedOLRE2 <- apply(
+  simulate(m.zero.olre2, nsim = n.sim) == 0, 
+  2, 
+  mean
+)
+ggplot(simulated, aes(x = ZeroInflatedOLRE2)) +
   geom_histogram(binwidth = 0.01) +
   geom_vline(xintercept = mean(dataset2$ZeroInflatedPoisson == 0), colour = "red") +
   scale_x_continuous(label = percent)
@@ -255,6 +287,18 @@ distribution$ZIPoisson <- dpois(
   plogis(coef(m.zero.zi2)[2]),
   0
 )
+
+se <- sqrt(VarCorr(m.zero.olre2)$ID)
+z <- seq(qnorm(.001, sd = se), qnorm(.999, sd = se), length = 101)
+dz <- dnorm(z, sd = se)
+dz <- dz / sum(dz)
+delta <- outer(
+  distribution$Count,
+  exp(z + fixef(m.zero.olre2)),
+  FUN = dpois
+)
+distribution$OLRE <- delta %*% dz
+
 distribution$NegBin <- dnbinom(
   distribution$Count, 
   size = m.zero.nb2$theta,
